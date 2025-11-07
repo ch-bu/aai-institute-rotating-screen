@@ -94,6 +94,7 @@
         const DISPLAY_DURATION_MS = 30_000;
         const PROGRAM_IMAGE = "images/program.png";
         const IMAGES_DIRECTORY = "images/";
+        const MANIFEST_PATH = `${IMAGES_DIRECTORY}manifest.json`;
         const IMAGE_EXTENSION_PATTERN = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;
         const statusFillEl = document.getElementById("status-bar-fill");
         const imageEl = document.getElementById("rotating-image");
@@ -170,23 +171,6 @@
           return uniqueSorted.map((entry) => `${IMAGES_DIRECTORY}${entry}`);
         }
 
-        async function discoverContentImages() {
-          const directoryEntries = await fetchDirectoryListing();
-          if (directoryEntries.length) {
-            return directoryEntries;
-          }
-
-          const manifestEntries = getManifestFromWindow();
-          if (manifestEntries.length) {
-            return manifestEntries;
-          }
-
-          console.warn(
-            "No content images found; falling back to program image only."
-          );
-          return [];
-        }
-
         function getManifestFromWindow() {
           if (
             typeof window === "undefined" ||
@@ -198,80 +182,44 @@
           return sanitizeImageEntries(window.__ROTATING_SCREEN_MANIFEST__);
         }
 
-        async function fetchDirectoryListing() {
-          try {
-            const response = await fetch(IMAGES_DIRECTORY, { cache: "no-store" });
-            if (!response.ok) {
-              throw new Error(
-                `Directory listing request failed with status ${response.status}`
-              );
-            }
-
-            const markup = await response.text();
-            return parseDirectoryListing(markup);
-          } catch (error) {
-            console.error(
-              "Unable to load images via directory listing. Check that your server exposes directory indexes.",
-              error
-            );
-            return [];
-          }
-        }
-
-        function parseDirectoryListing(markup) {
-          const parser = new DOMParser();
-          let filenames = [];
-
-          try {
-            const doc = parser.parseFromString(markup, "text/html");
-            filenames = Array.from(doc.querySelectorAll("a[href]"))
-              .map((anchor) => anchor.getAttribute("href") || "")
-              .map(normalizeHrefToFileName)
-              .filter(Boolean);
-          } catch (error) {
-            filenames = [];
-          }
-
-          if (!filenames.length) {
-            filenames = markup
-              .split(/[\s"'=<>]+/)
-              .map(normalizeHrefToFileName)
-              .filter(Boolean);
-          }
-
-          return sanitizeImageEntries(filenames);
-        }
-
-        function normalizeHrefToFileName(value) {
-          if (!value || value === "." || value === "..") {
-            return "";
-          }
-
-          const sanitized = (value || "").split("#")[0].split("?")[0];
-          const safeValue = safeDecodeURIComponent(sanitized).trim();
-
-          if (!safeValue || safeValue.endsWith("/")) {
-            return "";
-          }
-
-          const parts = safeValue.replace(/\\/g, "/").split("/");
-          return parts[parts.length - 1] || "";
-        }
-
-        function safeDecodeURIComponent(input) {
-          try {
-            return decodeURIComponent(input);
-          } catch (error) {
-            return input;
-          }
-        }
-
         async function loadManifest() {
-          contentImages = await discoverContentImages();
+          contentImages = await loadContentImages();
           contentIndex = 0;
           shouldShowProgramNext = false;
 
           startRotation();
+        }
+
+        async function loadContentImages() {
+          const manifestEntries = await fetchManifestEntries();
+          if (manifestEntries.length) {
+            return manifestEntries;
+          }
+
+          const inlineEntries = getManifestFromWindow();
+          if (inlineEntries.length) {
+            return inlineEntries;
+          }
+
+          console.warn("No content images found; showing program slide only.");
+          return [];
+        }
+
+        async function fetchManifestEntries() {
+          try {
+            const response = await fetch(MANIFEST_PATH, { cache: "no-store" });
+            if (!response.ok) {
+              throw new Error(
+                `Manifest request failed with status ${response.status}`
+              );
+            }
+
+            const data = await response.json();
+            return sanitizeImageEntries(data);
+          } catch (error) {
+            console.error("Unable to load manifest via fetch.", error);
+            return [];
+          }
         }
 
         document.addEventListener("visibilitychange", () => {
