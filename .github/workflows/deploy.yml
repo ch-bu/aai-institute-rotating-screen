@@ -16,6 +16,9 @@ concurrency:
 
 jobs:
   build-and-deploy:
+    env:
+      NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+      NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
