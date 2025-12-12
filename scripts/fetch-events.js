@@ -150,8 +150,9 @@ const main = async () => {
 
 const ALLOWED_STATUSES = new Set(['ready', 'make ready', 'promote']);
 const ALLOWED_PLACE = 'studio';
-const DISALLOWED_TYPES = new Set(['event', 'internal', 'external', 'tour']);
-const MAX_EVENTS = 6;
+const SCREEN_PROPERTY_NAMES = ['Screen', 'screen', 'On Screen'];
+const SCREEN_ON_VALUES = new Set(['yes', 'true', '1']);
+const MAX_EVENTS = 7;
 
 const events = results
   .map((page) => {
@@ -166,15 +167,23 @@ const events = results
     ]);
     const priceProp = findProperty(props, PROPERTY_GUESSES.price, ['rich_text', 'number', 'formula']);
     const placeProp = findProperty(props, ['place', 'location'], ['select']);
-    const typeProp = findProperty(props, ['Type', 'type'], ['multi_select']);
+    const screenProp = findProperty(props, SCREEN_PROPERTY_NAMES, ['rich_text', 'select', 'checkbox']);
 
     const dateRange = extractDateRange(dateProp);
     if (!dateRange?.start) return null;
 
-    const rawTypes = typeProp?.multi_select ?? [];
-    const typeTags = rawTypes
-      .map((item) => item?.name?.trim())
-      .filter(Boolean);
+    let screenEnabled = false;
+    if (screenProp) {
+      if (screenProp.type === 'checkbox') {
+        screenEnabled = Boolean(screenProp.checkbox);
+      } else if (screenProp.type === 'select') {
+        screenEnabled = SCREEN_ON_VALUES.has((screenProp.select?.name || '').trim().toLowerCase());
+      } else {
+        screenEnabled = SCREEN_ON_VALUES.has(
+          extractPlainText(screenProp).toLowerCase()
+        );
+      }
+    }
 
     return {
       id: page.id,
@@ -186,7 +195,7 @@ const events = results
       price: extractPlainText(priceProp),
       status: props?.Status?.status?.name ?? null,
       place: (extractPlainText(placeProp) || '').trim(),
-      typeTags
+      screenEnabled
     };
   })
   .filter(Boolean);
@@ -214,13 +223,11 @@ const filteredEvents = prioritizeEvents(
       const place = (event.place || '').toLowerCase();
       const hasAllowedStatus = ALLOWED_STATUSES.has(status);
       const matchesPlace = place === ALLOWED_PLACE;
-      const hasAllowedType = !event.typeTags?.some((tag) =>
-        DISALLOWED_TYPES.has(tag.trim().toLowerCase())
-      );
+      const isScreenEnabled = Boolean(event.screenEnabled);
       return (
         hasAllowedStatus &&
         matchesPlace &&
-        hasAllowedType &&
+        isScreenEnabled &&
         isFutureOrToday(event.dateStart)
       );
     }

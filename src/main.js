@@ -1,7 +1,9 @@
 import './style.css';
 import qrCodeImage from './assets/qr_code_studio.png';
 
-const MAX_EVENTS = 6;
+const MAX_EVENTS = 7;
+const ICON_COLOR = '#46add5';
+const SVG_NS = 'http://www.w3.org/2000/svg';
 const normalizeBase = (base) => {
   if (!base) return '/';
   if (base === '/') return '/';
@@ -58,13 +60,77 @@ const formatDateParts = (isoDate) => {
   };
 };
 
-const getLanguageIcon = (language = '') => {
+const getLanguageFlag = (language = '') => {
   const normalized = language.toLowerCase();
-  if (normalized.includes('deutsch')) return '🇩🇪';
-  if (normalized.includes('engl')) return '🇬🇧';
-  if (normalized.includes('franz')) return '🇫🇷';
-  if (normalized.includes('span')) return '🇪🇸';
+  if (normalized.includes('deutsch') || normalized.includes('german')) return '🇩🇪';
+  if (normalized.includes('engl') || normalized.includes('english')) return '🇬🇧';
   return '🌐';
+};
+
+const createLanguageIcon = (language = '') => {
+  const flag = document.createElement('span');
+  flag.className = 'event-card__flag';
+  flag.textContent = getLanguageFlag(language);
+  flag.setAttribute('aria-hidden', 'true');
+  return flag;
+};
+
+const createLineIcon = (type) => {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.classList.add('event-card__icon-svg');
+
+  const baseAttrs = {
+    fill: 'none',
+    stroke: ICON_COLOR,
+    'stroke-width': 1.8,
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round'
+  };
+
+  const applyAttrs = (node, attrs) => {
+    Object.entries(attrs).forEach(([key, value]) => node.setAttribute(key, value));
+  };
+
+  if (type === 'time') {
+    const circle = document.createElementNS(SVG_NS, 'circle');
+    applyAttrs(circle, { cx: 12, cy: 12, r: 8 });
+
+    const handShort = document.createElementNS(SVG_NS, 'line');
+    applyAttrs(handShort, { x1: 12, y1: 12, x2: 12, y2: 7 });
+
+    const handLong = document.createElementNS(SVG_NS, 'line');
+    applyAttrs(handLong, { x1: 12, y1: 12, x2: 16, y2: 14 });
+
+    [circle, handShort, handLong].forEach((node) => applyAttrs(node, baseAttrs));
+    svg.append(circle, handShort, handLong);
+    return svg;
+  }
+
+  if (type === 'price') {
+    const body = document.createElementNS(SVG_NS, 'path');
+    applyAttrs(body, {
+      d: 'M4 8h16v9c0 1.657-1.343 3-3 3H7c-1.657 0-3-1.343-3-3z'
+    });
+
+    const flap = document.createElementNS(SVG_NS, 'path');
+    applyAttrs(flap, {
+      d: 'M4 8l3-4h10l3 4'
+    });
+
+    const clasp = document.createElementNS(SVG_NS, 'circle');
+    applyAttrs(clasp, { cx: 16, cy: 13, r: 1.2 });
+
+    [body, flap, clasp].forEach((node) => applyAttrs(node, baseAttrs));
+    svg.append(body, flap, clasp);
+    return svg;
+  }
+
+  const line = document.createElementNS(SVG_NS, 'line');
+  applyAttrs(line, { x1: 4, y1: 12, x2: 20, y2: 12 });
+  applyAttrs(line, baseAttrs);
+  svg.append(line);
+  return svg;
 };
 
 const formatTimeWindow = ({ time, dateStart, dateEnd }) => {
@@ -149,28 +215,32 @@ const renderEvents = (events = []) => {
     const metaList = document.createElement('ul');
     metaList.className = 'event-card__meta';
 
-    const addMetaItem = (type, label, iconSymbol) => {
-      if (!label) return;
-      const item = document.createElement('li');
-      item.className = `event-card__meta-item event-card__meta-item--${type}`;
+const addMetaItem = (type, label, iconNode) => {
+  if (!label) return;
+  const item = document.createElement('li');
+  item.className = `event-card__meta-item event-card__meta-item--${type}`;
 
-      const icon = document.createElement('span');
-      icon.className = 'event-card__meta-icon';
-      icon.setAttribute('aria-hidden', 'true');
-      icon.textContent = iconSymbol;
+  const icon = document.createElement('span');
+  icon.className = `event-card__meta-icon${
+    type === 'language' ? ' event-card__meta-icon--flag' : ''
+  }`;
+  icon.setAttribute('aria-hidden', 'true');
+  if (iconNode) {
+    icon.append(iconNode);
+  }
 
-      const text = document.createElement('span');
-      text.className = 'event-card__meta-label';
+  const text = document.createElement('span');
+  text.className = 'event-card__meta-label';
       text.textContent = label;
 
       item.append(icon, text);
       metaList.append(item);
     };
 
-    addMetaItem('language', event.language || 'Sprache folgt', getLanguageIcon(event.language));
-    const timeLabel = formatTimeWindow(event);
-    addMetaItem('time', timeLabel || 'Zeit folgt', '🕒');
-    addMetaItem('price', formatPrice(event.price), '💳');
+  addMetaItem('language', event.language || 'Sprache folgt', createLanguageIcon(event.language));
+  const timeLabel = formatTimeWindow(event);
+  addMetaItem('time', timeLabel || 'Zeit folgt', createLineIcon('time'));
+  addMetaItem('price', formatPrice(event.price), createLineIcon('price'));
 
     body.append(titleEl, metaList);
     card.append(dateBadge, body);
