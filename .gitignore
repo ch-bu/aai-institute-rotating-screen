@@ -1,0 +1,10 @@
+node_modules
+.DS_Store
+.dist
+vite.config.ts.timestamp-*
+dist
+.vite
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

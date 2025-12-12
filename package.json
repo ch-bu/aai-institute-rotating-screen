@@ -1,12 +1,14 @@
 {
   "name": "aai-institute-rotating-screen",
   "version": "1.0.0",
-  "description": "Rotating fullscreen signage deck",
+  "private": true,
   "type": "module",
   "scripts": {
-    "build": "node scripts/generate-manifest.js"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
-  "engines": {
-    "node": ">=18"
+  "devDependencies": {
+    "vite": "^5.2.0"
   }
 }
