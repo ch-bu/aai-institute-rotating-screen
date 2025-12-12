@@ -4,11 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "predev": "npm run fetch:events",
+    "prebuild": "npm run fetch:events",
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "fetch:events": "node scripts/fetch-events.js"
   },
   "devDependencies": {
+    "dotenv": "^16.4.5",
     "vite": "^5.2.0"
   }
 }
