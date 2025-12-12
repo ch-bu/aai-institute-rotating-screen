@@ -148,7 +148,9 @@ const main = async () => {
   const results = await fetchAllPages();
   console.log(`[fetch-events] Retrieved ${results.length} total row(s) from Notion.`);
 
-const ALLOWED_STATUSES = new Set(['Ready', 'Make ready', 'Promote']);
+const ALLOWED_STATUSES = new Set(['ready', 'make ready', 'promote']);
+const ALLOWED_PLACE = 'studio';
+const DISALLOWED_TYPES = new Set(['event', 'internal', 'external', 'tour']);
 const MAX_EVENTS = 6;
 
 const events = results
@@ -157,15 +159,22 @@ const events = results
     const titleProp = findProperty(props, PROPERTY_GUESSES.title, ['title']);
     const dateProp = findProperty(props, PROPERTY_GUESSES.date, ['date', 'formula']);
     const timeProp = findProperty(props, PROPERTY_GUESSES.time, ['rich_text', 'title']);
-      const languageProp = findProperty(props, PROPERTY_GUESSES.language, [
-        'rich_text',
-        'select',
-        'multi_select'
-      ]);
-      const priceProp = findProperty(props, PROPERTY_GUESSES.price, ['rich_text', 'number', 'formula']);
+    const languageProp = findProperty(props, PROPERTY_GUESSES.language, [
+      'rich_text',
+      'select',
+      'multi_select'
+    ]);
+    const priceProp = findProperty(props, PROPERTY_GUESSES.price, ['rich_text', 'number', 'formula']);
+    const placeProp = findProperty(props, ['place', 'location'], ['select']);
+    const typeProp = findProperty(props, ['Type', 'type'], ['multi_select']);
 
     const dateRange = extractDateRange(dateProp);
     if (!dateRange?.start) return null;
+
+    const rawTypes = typeProp?.multi_select ?? [];
+    const typeTags = rawTypes
+      .map((item) => item?.name?.trim())
+      .filter(Boolean);
 
     return {
       id: page.id,
@@ -175,7 +184,9 @@ const events = results
       language: extractPlainText(languageProp),
       time: extractPlainText(timeProp),
       price: extractPlainText(priceProp),
-      status: props?.Status?.status?.name ?? null
+      status: props?.Status?.status?.name ?? null,
+      place: (extractPlainText(placeProp) || '').trim(),
+      typeTags
     };
   })
   .filter(Boolean);
@@ -198,7 +209,21 @@ const isFutureOrToday = (isoDate) => {
 
 const filteredEvents = prioritizeEvents(
   events.filter(
-    (event) => ALLOWED_STATUSES.has((event.status || '').trim()) && isFutureOrToday(event.dateStart)
+    (event) => {
+      const status = (event.status || '').trim().toLowerCase();
+      const place = (event.place || '').toLowerCase();
+      const hasAllowedStatus = ALLOWED_STATUSES.has(status);
+      const matchesPlace = place === ALLOWED_PLACE;
+      const hasAllowedType = !event.typeTags?.some((tag) =>
+        DISALLOWED_TYPES.has(tag.trim().toLowerCase())
+      );
+      return (
+        hasAllowedStatus &&
+        matchesPlace &&
+        hasAllowedType &&
+        isFutureOrToday(event.dateStart)
+      );
+    }
   )
 );
 
