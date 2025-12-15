@@ -24,7 +24,7 @@ jobs:
 
       - name: Start dev server
         run: |
-          npm run dev -- --host 0.0.0.0 --port 4173 --strictPort > dev-server.log 2>&1 &
+          npx vite --host 0.0.0.0 --port 4173 --strictPort > dev-server.log 2>&1 &
           echo $! > dev-server.pid
 
       - name: Wait for dev server
@@ -45,7 +45,12 @@ jobs:
       - name: Capture screenshot
         run: |
           mkdir -p artifacts
-          npx --yes playwright screenshot --device="Desktop Chrome" http://127.0.0.1:4173 artifacts/desktop-screen.png
+          npx --yes playwright screenshot \
+            --device="Desktop Chrome" \
+            --wait-for-selector="#app" \
+            --wait-for-timeout=5000 \
+            http://127.0.0.1:4173 \
+            artifacts/desktop-screen.png
 
       - name: Stop dev server
         if: always()
