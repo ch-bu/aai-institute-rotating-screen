@@ -1,7 +1,6 @@
 import './style.css';
 import qrCodeImage from './assets/qr_code_studio.png';
 
-const MAX_EVENTS = 7;
 const ICON_COLOR = '#46add5';
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const normalizeBase = (base) => {
@@ -11,7 +10,29 @@ const normalizeBase = (base) => {
 };
 const basePath = normalizeBase(import.meta.env.BASE_URL || '/');
 const EVENTS_ENDPOINT = `${basePath}events.json`;
+const MAX_EVENTS = 6;
 const root = document.querySelector('#app');
+let currentEvents = [];
+let resizeFrame;
+
+const getColumnCount = () => {
+  if (typeof window === 'undefined') return 1;
+  const landscapeWide = window.matchMedia('(orientation: landscape) and (min-width: 1200px)').matches;
+  return landscapeWide ? 2 : 1;
+};
+
+const updateEventRowsVariable = () => {
+  if (!root) return;
+  const columns = getColumnCount();
+  const rows = Math.max(1, Math.ceil((currentEvents.length || 1) / columns));
+  root.style.setProperty('--events-rows', rows);
+};
+
+const scheduleRowsUpdate = () => {
+  if (typeof window === 'undefined') return;
+  if (resizeFrame) window.cancelAnimationFrame(resizeFrame);
+  resizeFrame = window.requestAnimationFrame(updateEventRowsVariable);
+};
 
 const hero = document.createElement('header');
 hero.className = 'hero';
@@ -177,6 +198,8 @@ const renderEvents = (events = []) => {
   if (placeholder) placeholder.remove();
 
   eventsList.innerHTML = '';
+  currentEvents = Array.isArray(events) ? events : [];
+  updateEventRowsVariable();
 
   if (!events.length) {
     const emptyState = document.createElement('p');
@@ -215,32 +238,32 @@ const renderEvents = (events = []) => {
     const metaList = document.createElement('ul');
     metaList.className = 'event-card__meta';
 
-const addMetaItem = (type, label, iconNode) => {
-  if (!label) return;
-  const item = document.createElement('li');
-  item.className = `event-card__meta-item event-card__meta-item--${type}`;
+    const addMetaItem = (type, label, iconNode) => {
+      if (!label) return;
+      const item = document.createElement('li');
+      item.className = `event-card__meta-item event-card__meta-item--${type}`;
 
-  const icon = document.createElement('span');
-  icon.className = `event-card__meta-icon${
-    type === 'language' ? ' event-card__meta-icon--flag' : ''
-  }`;
-  icon.setAttribute('aria-hidden', 'true');
-  if (iconNode) {
-    icon.append(iconNode);
-  }
+      const icon = document.createElement('span');
+      icon.className = `event-card__meta-icon${
+        type === 'language' ? ' event-card__meta-icon--flag' : ''
+      }`;
+      icon.setAttribute('aria-hidden', 'true');
+      if (iconNode) {
+        icon.append(iconNode);
+      }
 
-  const text = document.createElement('span');
-  text.className = 'event-card__meta-label';
+      const text = document.createElement('span');
+      text.className = 'event-card__meta-label';
       text.textContent = label;
 
       item.append(icon, text);
       metaList.append(item);
     };
 
-  addMetaItem('language', event.language || 'Sprache folgt', createLanguageIcon(event.language));
-  const timeLabel = formatTimeWindow(event);
-  addMetaItem('time', timeLabel || 'Zeit folgt', createLineIcon('time'));
-  addMetaItem('price', formatPrice(event.price), createLineIcon('price'));
+    addMetaItem('language', event.language || 'Sprache folgt', createLanguageIcon(event.language));
+    const timeLabel = formatTimeWindow(event);
+    addMetaItem('time', timeLabel || 'Zeit folgt', createLineIcon('time'));
+    addMetaItem('price', formatPrice(event.price), createLineIcon('price'));
 
     body.append(titleEl, metaList);
     card.append(dateBadge, body);
@@ -275,3 +298,6 @@ const init = async () => {
 
 root.append(hero, eventsSection);
 init();
+if (typeof window !== 'undefined') {
+  window.addEventListener('resize', scheduleRowsUpdate, { passive: true });
+}
