@@ -193,20 +193,19 @@ body {
 }
 
 .event-card__meta-icon {
-  width: clamp(32px, 3vh, 36px);
-  height: clamp(32px, 3vh, 36px);
-  border-radius: 14px;
-  border: 2px solid rgba(70, 173, 213, 0.35);
-  background: rgba(70, 173, 213, 0.08);
-  color: #46add5;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: auto;
+  height: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
 }
 
 .event-card__meta-icon svg {
-  width: 70%;
-  height: 70%;
+  width: clamp(1.6rem, 2.4vh, 2rem);
+  height: clamp(1.6rem, 2.4vh, 2rem);
 }
 
 .event-card__meta-icon--flag {
