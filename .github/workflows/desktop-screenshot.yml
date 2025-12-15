@@ -54,15 +54,9 @@ jobs:
       - name: Capture screenshot
         run: |
           mkdir -p artifacts
-          npx --yes playwright@1.45.0 screenshot \
-            --device="Desktop Chrome" \
-            --viewport-size="1920,1080" \
-            --device-scale-factor=3 \
-            --full-page \
-            --wait-for-selector="#app .event-card" \
-            --wait-for-timeout=8000 \
-            http://127.0.0.1:4173 \
-            artifacts/desktop-screen.png
+          node scripts/capture-screenshot.js \
+            --url http://127.0.0.1:4173 \
+            --path artifacts/desktop-screen.png
 
       - name: Verify screenshot file
         run: |
