@@ -56,7 +56,8 @@ jobs:
           mkdir -p artifacts
           npx --yes playwright@1.45.0 screenshot \
             --device="Desktop Chrome" \
-            --viewport-size="3840,2160" \
+            --viewport-size="1920,1080" \
+            --device-scale-factor=3 \
             --full-page \
             --wait-for-selector="#app .event-card" \
             --wait-for-timeout=8000 \
