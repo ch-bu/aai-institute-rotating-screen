@@ -128,7 +128,7 @@ body {
 
 .events__list {
   list-style: none;
-  padding: 0;
+  padding: 0px;
   margin: 0;
   height: 100%;
   display: grid;
