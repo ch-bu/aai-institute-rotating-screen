@@ -148,7 +148,7 @@ const main = async () => {
   const results = await fetchAllPages();
   console.log(`[fetch-events] Retrieved ${results.length} total row(s) from Notion.`);
 
-const ALLOWED_STATUSES = new Set(['ready', 'make ready', 'promote']);
+const ALLOWED_STATUSES = new Set(['ready', 'promote', 'prepare']);
 const ALLOWED_PLACE = 'studio';
 const SCREEN_PROPERTY_NAMES = ['Screen', 'screen', 'On Screen'];
 const SCREEN_ON_VALUES = new Set(['yes', 'true', '1']);
