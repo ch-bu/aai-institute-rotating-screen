@@ -42,11 +42,28 @@ body {
   display: grid;
   grid-template-rows: auto 1fr;
   gap: clamp(20px, 3vh, 48px);
-  background-image: url('./assets/lines_background.png');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  position: relative;
+  isolation: isolate;
+  background: linear-gradient(140deg, #f2f7fa 0%, #ddeaf0 100%);
   overflow: hidden;
+}
+
+#app::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url('./assets/background.png');
+  background-repeat: no-repeat;
+  background-size: clamp(540px, 60vw, 1020px);
+  background-position: right -14vw top -16vh;
+  opacity: 0.26;
+}
+
+#app > * {
+  position: relative;
+  z-index: 1;
 }
 
 .hero {
@@ -108,6 +125,12 @@ body {
 }
 
 @media (max-width: 900px) {
+  #app::before {
+    background-size: clamp(420px, 92vw, 760px);
+    background-position: right -34vw top -8vh;
+    opacity: 0.2;
+  }
+
   .hero__header {
     grid-template-columns: minmax(0, 1fr) minmax(120px, 35vw);
     gap: clamp(8px, 2vw, 18px);
@@ -325,6 +348,12 @@ body {
   #app {
     padding: clamp(48px, 4vw, 140px);
     gap: clamp(32px, 4vh, 64px);
+  }
+
+  #app::before {
+    background-size: clamp(880px, 52vw, 1320px);
+    background-position: right -9vw top -12vh;
+    opacity: 0.3;
   }
 
   .hero__title {
