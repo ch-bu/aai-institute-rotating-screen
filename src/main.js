@@ -1,5 +1,8 @@
 import './style.css';
 import qrCodeImage from './assets/qr_code_studio.png';
+import flagGerman from './assets/flags/de.svg';
+import flagEnglish from './assets/flags/gb.svg';
+import flagGlobal from './assets/flags/globe.svg';
 
 const ICON_COLOR = '#46add5';
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -81,18 +84,19 @@ const formatDateParts = (isoDate) => {
   };
 };
 
-const getLanguageFlag = (language = '') => {
+const getLanguageFlagImage = (language = '') => {
   const normalized = language.toLowerCase();
-  if (normalized.includes('deutsch') || normalized.includes('german')) return '🇩🇪';
-  if (normalized.includes('engl') || normalized.includes('english')) return '🇬🇧';
-  return '🌐';
+  if (normalized.includes('deutsch') || normalized.includes('german')) return flagGerman;
+  if (normalized.includes('engl') || normalized.includes('english')) return flagEnglish;
+  return flagGlobal;
 };
 
 const createLanguageIcon = (language = '') => {
-  const flag = document.createElement('span');
+  const flag = document.createElement('img');
   flag.className = 'event-card__flag';
-  flag.textContent = getLanguageFlag(language);
-  flag.setAttribute('aria-hidden', 'true');
+  flag.src = getLanguageFlagImage(language);
+  flag.alt = '';
+  flag.decoding = 'async';
   return flag;
 };
 
