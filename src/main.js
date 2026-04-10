@@ -6,6 +6,12 @@ import flagGlobal from './assets/flags/globe.svg';
 
 const ICON_COLOR = '#46add5';
 const SVG_NS = 'http://www.w3.org/2000/svg';
+const LIVE_VIEW_REFRESH_MS = 30 * 1000;
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const DEFAULT_KICKER_TEXT = 'Unsere nächsten';
+const LIVE_KICKER_TEXT = 'Live Now';
+const DEFAULT_TITLE_HTML = 'Veranstaltungen<br>hier im aai Studio';
+
 const normalizeBase = (base) => {
   if (!base) return '/';
   if (base === '/') return '/';
@@ -17,6 +23,8 @@ const MAX_EVENTS = 6;
 const root = document.querySelector('#app');
 let currentEvents = [];
 let resizeFrame;
+let activeEvents = [];
+let liveViewIntervalId;
 
 const getColumnCount = () => {
   if (typeof window === 'undefined') return 1;
@@ -48,7 +56,7 @@ textGroup.className = 'hero__text';
 
 const kicker = document.createElement('p');
 kicker.className = 'hero__kicker';
-kicker.textContent = 'Unsere nächsten';
+kicker.textContent = DEFAULT_KICKER_TEXT;
 
 const qrWrapper = document.createElement('div');
 qrWrapper.className = 'hero__qr';
@@ -60,7 +68,7 @@ qrWrapper.append(qrImage);
 
 const title = document.createElement('h1');
 title.className = 'hero__title';
-title.innerHTML = 'Veranstaltungen<br>hier im aai Studio';
+title.innerHTML = DEFAULT_TITLE_HTML;
 
 textGroup.append(kicker, title);
 headerRow.append(textGroup, qrWrapper);
@@ -72,6 +80,46 @@ eventsSection.className = 'events';
 const eventsList = document.createElement('ol');
 eventsList.className = 'events__list';
 eventsSection.append(eventsList);
+
+const liveSection = document.createElement('section');
+liveSection.className = 'live';
+liveSection.hidden = true;
+
+const liveCard = document.createElement('article');
+liveCard.className = 'live-card';
+
+const liveBadge = document.createElement('p');
+liveBadge.className = 'live-card__badge';
+liveBadge.textContent = LIVE_KICKER_TEXT;
+
+const liveStatus = document.createElement('p');
+liveStatus.className = 'live-card__status';
+
+const liveTitle = document.createElement('h2');
+liveTitle.className = 'live-card__title';
+
+const liveMeta = document.createElement('div');
+liveMeta.className = 'live-card__meta';
+
+const liveFooter = document.createElement('div');
+liveFooter.className = 'live-card__footer';
+
+const liveFooterNote = document.createElement('p');
+liveFooterNote.className = 'live-card__footer-note';
+liveFooterNote.textContent = 'Unsere weiteren Angebote findest du über diesen QR-Code.';
+
+const liveQr = document.createElement('div');
+liveQr.className = 'live-card__qr';
+
+const liveQrImage = new Image();
+liveQrImage.src = qrCodeImage;
+liveQrImage.alt = 'Programm als QR-Code öffnen';
+liveQrImage.decoding = 'async';
+liveQr.append(liveQrImage);
+
+liveFooter.append(liveFooterNote, liveQr);
+liveCard.append(liveBadge, liveStatus, liveTitle, liveMeta, liveFooter);
+liveSection.append(liveCard);
 
 const formatDateParts = (isoDate) => {
   if (!isoDate) return { day: '--', month: '--' };
@@ -151,6 +199,20 @@ const createLineIcon = (type) => {
     return svg;
   }
 
+  if (type === 'trainer') {
+    const head = document.createElementNS(SVG_NS, 'circle');
+    applyAttrs(head, { cx: 12, cy: 8, r: 3 });
+
+    const shoulders = document.createElementNS(SVG_NS, 'path');
+    applyAttrs(shoulders, {
+      d: 'M5 19c0-3.2 3-5.2 7-5.2s7 2 7 5.2'
+    });
+
+    [head, shoulders].forEach((node) => applyAttrs(node, baseAttrs));
+    svg.append(head, shoulders);
+    return svg;
+  }
+
   const line = document.createElementNS(SVG_NS, 'line');
   applyAttrs(line, { x1: 4, y1: 12, x2: 20, y2: 12 });
   applyAttrs(line, baseAttrs);
@@ -158,8 +220,107 @@ const createLineIcon = (type) => {
   return svg;
 };
 
+const normalizeTimeLabel = (timeLabel = '') =>
+  timeLabel
+    .replace(/[–—]/g, '-')
+    .replace(/\s*-\s*/g, ' - ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const parseTimeRange = (timeLabel = '') => {
+  if (!timeLabel) return null;
+  const matches = [...normalizeTimeLabel(timeLabel).matchAll(/(\d{1,2})[:.](\d{2})/g)];
+  if (matches.length < 2) return null;
+
+  const toMinutes = (match) => {
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+    if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+    return hours * 60 + minutes;
+  };
+
+  const startMinutes = toMinutes(matches[0]);
+  const endMinutes = toMinutes(matches[1]);
+  if (startMinutes === null || endMinutes === null) return null;
+  return { startMinutes, endMinutes };
+};
+
+const isDateOnlyString = (value = '') => DATE_ONLY_PATTERN.test(value);
+
+const parseEventDate = (value = '') => {
+  if (!value) return null;
+  if (isDateOnlyString(value)) {
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const createDateWithMinutes = (baseDate, minutes) =>
+  new Date(
+    baseDate.getFullYear(),
+    baseDate.getMonth(),
+    baseDate.getDate(),
+    Math.floor(minutes / 60),
+    minutes % 60,
+    0,
+    0
+  );
+
+const getEventWindow = (event = {}) => {
+  const startRaw = event.dateStart || '';
+  if (!startRaw) return null;
+
+  const parsedStart = parseEventDate(startRaw);
+  if (!parsedStart) return null;
+
+  const dateOnlyStart = isDateOnlyString(startRaw);
+  const parsedEndRaw = parseEventDate(event.dateEnd || '');
+  const dateOnlyEnd = isDateOnlyString(event.dateEnd || '');
+  const timeRange = parseTimeRange(event.time || '');
+
+  let start = parsedStart;
+  let end = parsedEndRaw;
+
+  if (dateOnlyStart && timeRange) {
+    start = createDateWithMinutes(parsedStart, timeRange.startMinutes);
+    end = createDateWithMinutes(parsedStart, timeRange.endMinutes);
+    if (end <= start) end.setDate(end.getDate() + 1);
+    return { start, end };
+  }
+
+  if (dateOnlyStart && end && dateOnlyEnd) {
+    end = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999);
+    return { start, end };
+  }
+
+  if (!end && timeRange) {
+    end = createDateWithMinutes(parsedStart, timeRange.endMinutes);
+    if (end <= start) end.setDate(end.getDate() + 1);
+  }
+
+  if (end && dateOnlyEnd) {
+    end = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999);
+  }
+
+  if (!end) return null;
+  return { start, end };
+};
+
+const getLiveEvent = (events = [], now = new Date()) =>
+  (Array.isArray(events) ? events : [])
+    .map((event) => {
+      const window = getEventWindow(event);
+      return window ? { event, window } : null;
+    })
+    .filter(Boolean)
+    .filter(({ window }) => now >= window.start && now <= window.end)
+    .sort((a, b) => b.window.start - a.window.start)[0]?.event ?? null;
+
 const formatTimeWindow = ({ time, dateStart, dateEnd }) => {
-  if (time?.trim()) return time.trim();
+  if (time?.trim()) return normalizeTimeLabel(time);
   if (!dateStart) return '';
   const start = new Date(dateStart);
   if (Number.isNaN(start.getTime())) return '';
@@ -197,7 +358,33 @@ const formatPrice = (price = '') => {
   return price;
 };
 
-const renderEvents = (events = []) => {
+const getTrainerName = (event = {}) => {
+  if (typeof event.trainer === 'string' && event.trainer.trim()) return event.trainer.trim();
+
+  const trainerField = Object.entries(event).find(
+    ([key, value]) =>
+      typeof value === 'string' &&
+      value.trim() &&
+      /(trainer|speaker|host|instructor|presenter|moderator|coach|referent)/i.test(key)
+  );
+  return trainerField ? trainerField[1].trim() : '';
+};
+
+const setDefaultHeroContent = () => {
+  root.classList.remove('app--live');
+  hero.classList.remove('hero--live');
+  kicker.textContent = DEFAULT_KICKER_TEXT;
+  title.innerHTML = DEFAULT_TITLE_HTML;
+};
+
+const setLiveHeroContent = (event = {}) => {
+  root.classList.add('app--live');
+  hero.classList.add('hero--live');
+  kicker.textContent = '';
+  title.textContent = event.title || 'Live Event';
+};
+
+const renderEventsList = (events = []) => {
   const placeholder = eventsSection.querySelector('.events__empty');
   if (placeholder) placeholder.remove();
 
@@ -275,6 +462,65 @@ const renderEvents = (events = []) => {
   });
 };
 
+const renderLiveEvent = (event = {}) => {
+  setLiveHeroContent(event);
+  liveStatus.textContent = 'Diese Veranstaltung findet gerade hier im aai Studio statt.';
+  liveTitle.textContent = event.title || 'Live Event';
+
+  liveMeta.innerHTML = '';
+
+  const addLiveMetaItem = (label, value, iconNode, isFlag = false) => {
+    const item = document.createElement('div');
+    item.className = 'live-card__meta-item';
+
+    const labelEl = document.createElement('p');
+    labelEl.className = 'live-card__meta-label';
+    labelEl.textContent = label;
+
+    const valueRow = document.createElement('div');
+    valueRow.className = 'live-card__meta-value';
+
+    const valueEl = document.createElement('p');
+    valueEl.className = 'live-card__meta-text';
+    valueEl.textContent = value;
+
+    if (iconNode) {
+      valueRow.classList.add('live-card__meta-value--with-icon');
+      const icon = document.createElement('span');
+      icon.className = `live-card__meta-icon${isFlag ? ' live-card__meta-icon--flag' : ''}`;
+      icon.setAttribute('aria-hidden', 'true');
+      icon.append(iconNode);
+      valueRow.append(icon);
+    }
+
+    valueRow.append(valueEl);
+    item.append(labelEl, valueRow);
+    liveMeta.append(item);
+  };
+
+  addLiveMetaItem('Zeit', formatTimeWindow(event) || 'Zeit folgt', null);
+  addLiveMetaItem('Sprache', event.language || 'Sprache folgt', createLanguageIcon(event.language), true);
+  addLiveMetaItem('Trainer', getTrainerName(event) || 'Trainer folgt', null);
+
+  liveSection.hidden = false;
+  eventsSection.hidden = true;
+};
+
+const renderScreen = (events = []) => {
+  const normalizedEvents = Array.isArray(events) ? events : [];
+  const liveEvent = getLiveEvent(normalizedEvents);
+
+  if (liveEvent) {
+    renderLiveEvent(liveEvent);
+    return;
+  }
+
+  setDefaultHeroContent();
+  liveSection.hidden = true;
+  eventsSection.hidden = false;
+  renderEventsList(normalizedEvents);
+};
+
 const loadEvents = async () => {
   try {
     const response = await fetch(`${EVENTS_ENDPOINT}?t=${Date.now()}`, {
@@ -294,13 +540,23 @@ const loadEvents = async () => {
   }
 };
 
-const init = async () => {
-  renderEvents();
-  const events = await loadEvents();
-  renderEvents(events);
+const startLiveViewTicker = () => {
+  if (typeof window === 'undefined') return;
+  if (liveViewIntervalId) window.clearInterval(liveViewIntervalId);
+  liveViewIntervalId = window.setInterval(() => {
+    renderScreen(activeEvents);
+  }, LIVE_VIEW_REFRESH_MS);
 };
 
-root.append(hero, eventsSection);
+const init = async () => {
+  renderEventsList();
+  const events = await loadEvents();
+  activeEvents = events;
+  renderScreen(activeEvents);
+  startLiveViewTicker();
+};
+
+root.append(hero, liveSection, eventsSection);
 init();
 if (typeof window !== 'undefined') {
   window.addEventListener('resize', scheduleRowsUpdate, { passive: true });

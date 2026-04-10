@@ -42,6 +42,8 @@ const extractPlainText = (property) => {
       return property.select?.name ?? '';
     case 'multi_select':
       return property.multi_select?.map((item) => item.name).join(', ');
+    case 'people':
+      return property.people?.map((person) => person.name).filter(Boolean).join(', ');
     case 'number':
       return typeof property.number === 'number' ? String(property.number) : '';
     case 'formula': {
@@ -71,7 +73,8 @@ const envPropertyNames = {
   date: process.env.NOTION_DATE_PROPERTY,
   time: process.env.NOTION_TIME_PROPERTY,
   language: process.env.NOTION_LANGUAGE_PROPERTY,
-  price: process.env.NOTION_PRICE_PROPERTY
+  price: process.env.NOTION_PRICE_PROPERTY,
+  trainer: process.env.NOTION_TRAINER_PROPERTY
 };
 
 const withEnvPriority = (envName, defaults) =>
@@ -88,7 +91,20 @@ const PROPERTY_GUESSES = {
   ]),
   time: withEnvPriority(envPropertyNames.time, ['Time', 'Uhrzeit', 'Event Time']),
   language: withEnvPriority(envPropertyNames.language, ['Language', 'Sprache', 'Lang']),
-  price: withEnvPriority(envPropertyNames.price, ['Price', 'Preis', 'Kosten', 'Fee'])
+  price: withEnvPriority(envPropertyNames.price, ['Price', 'Preis', 'Kosten', 'Fee']),
+  trainer: withEnvPriority(envPropertyNames.trainer, [
+    'Trainer',
+    'Trainer:in',
+    'Trainer / Owner',
+    'trainer / owner',
+    'Trainer/Owner',
+    'trainer/owner',
+    'Owner',
+    'Speaker',
+    'Host',
+    'Referent',
+    'Instructor'
+  ])
 };
 
 const findProperty = (props, names = [], allowedTypes = []) => {
@@ -166,6 +182,13 @@ const events = results
       'multi_select'
     ]);
     const priceProp = findProperty(props, PROPERTY_GUESSES.price, ['rich_text', 'number', 'formula']);
+    const trainerProp = findProperty(props, PROPERTY_GUESSES.trainer, [
+      'rich_text',
+      'title',
+      'select',
+      'multi_select',
+      'people'
+    ]);
     const placeProp = findProperty(props, ['place', 'location'], ['select']);
     const screenProp = findProperty(props, SCREEN_PROPERTY_NAMES, ['rich_text', 'select', 'checkbox']);
 
@@ -193,6 +216,7 @@ const events = results
       language: extractPlainText(languageProp),
       time: extractPlainText(timeProp),
       price: extractPlainText(priceProp),
+      trainer: extractPlainText(trainerProp),
       status: props?.Status?.status?.name ?? null,
       place: (extractPlainText(placeProp) || '').trim(),
       screenEnabled
@@ -220,7 +244,7 @@ const filteredEvents = prioritizeEvents(
   events.filter(
     (event) => {
       const status = (event.status || '').trim().toLowerCase();
-      const place = (event.place || '').toLowerCase();
+      const place = (event.place || '').trim().toLowerCase();
       const hasAllowedStatus = ALLOWED_STATUSES.has(status);
       const matchesPlace = place === ALLOWED_PLACE;
       const isScreenEnabled = Boolean(event.screenEnabled);
