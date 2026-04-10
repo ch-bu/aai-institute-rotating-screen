@@ -92,7 +92,7 @@ body {
   margin: 0;
   letter-spacing: 0.25em;
   text-transform: uppercase;
-  color: var(--studio-light);
+  color: #6543FF;
   font-size: clamp(1rem, 2vh, 1.8rem);
 }
 
