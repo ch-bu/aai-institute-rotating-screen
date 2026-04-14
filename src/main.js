@@ -7,9 +7,11 @@ import flagGlobal from './assets/flags/globe.svg';
 const ICON_COLOR = '#46add5';
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const LIVE_VIEW_REFRESH_MS = 30 * 1000;
+const LIVE_VIEW_LEAD_IN_MS = 30 * 60 * 1000;
 const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const DEFAULT_KICKER_TEXT = 'Unsere nächsten';
 const LIVE_KICKER_TEXT = 'Live Now';
+const UPCOMING_KICKER_TEXT = 'Starts Soon';
 const DEFAULT_TITLE_HTML = 'Veranstaltungen<br>hier im aai Studio';
 
 const normalizeBase = (base) => {
@@ -309,15 +311,24 @@ const getEventWindow = (event = {}) => {
   return { start, end };
 };
 
-const getLiveEvent = (events = [], now = new Date()) =>
+const getFeaturedEvent = (events = [], now = new Date()) =>
   (Array.isArray(events) ? events : [])
     .map((event) => {
       const window = getEventWindow(event);
-      return window ? { event, window } : null;
+      if (!window) return null;
+      return {
+        event,
+        window,
+        displayStart: new Date(window.start.getTime() - LIVE_VIEW_LEAD_IN_MS),
+        isLive: now >= window.start
+      };
     })
     .filter(Boolean)
-    .filter(({ window }) => now >= window.start && now <= window.end)
-    .sort((a, b) => b.window.start - a.window.start)[0]?.event ?? null;
+    .filter(({ displayStart, window }) => now >= displayStart && now <= window.end)
+    .sort((a, b) => {
+      if (a.isLive !== b.isLive) return a.isLive ? -1 : 1;
+      return a.isLive ? b.window.start - a.window.start : a.window.start - b.window.start;
+    })[0] ?? null;
 
 const formatTimeWindow = ({ time, dateStart, dateEnd }) => {
   if (time?.trim()) return normalizeTimeLabel(time);
@@ -462,9 +473,12 @@ const renderEventsList = (events = []) => {
   });
 };
 
-const renderLiveEvent = (event = {}) => {
+const renderLiveEvent = ({ event = {}, isLive = false } = {}) => {
   setLiveHeroContent(event);
-  liveStatus.textContent = 'Diese Veranstaltung findet gerade hier im aai Studio statt.';
+  liveBadge.textContent = isLive ? LIVE_KICKER_TEXT : UPCOMING_KICKER_TEXT;
+  liveStatus.textContent = isLive
+    ? 'Diese Veranstaltung findet gerade hier im aai Studio statt.'
+    : 'Diese Veranstaltung startet in Kürze hier im aai Studio.';
   liveTitle.textContent = event.title || 'Live Event';
 
   liveMeta.innerHTML = '';
@@ -508,7 +522,7 @@ const renderLiveEvent = (event = {}) => {
 
 const renderScreen = (events = []) => {
   const normalizedEvents = Array.isArray(events) ? events : [];
-  const liveEvent = getLiveEvent(normalizedEvents);
+  const liveEvent = getFeaturedEvent(normalizedEvents);
 
   if (liveEvent) {
     renderLiveEvent(liveEvent);
