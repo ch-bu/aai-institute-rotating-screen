@@ -2,7 +2,7 @@ name: Build and deploy site to Pages
 
 on:
   push:
-    branches: [ current-event ]
+    branches: [ main ]
   schedule:
     - cron: "0 6 * * *"
   workflow_dispatch:
